@@ -1,11 +1,20 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 
 // Routes
 import userRouter from "./modules/user/user.routes.js";
 import authRouter from "./modules/auth/auth.routes.js";
 
 const app = express();
+
+// ─── CORS CONFIG ─────────────────────────────────────────────
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Vite frontend
+    credentials: true, // IMPORTANT for cookies
+  }),
+);
 
 // Middlewares
 app.use(express.json());

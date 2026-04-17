@@ -1,67 +1,69 @@
 import { Request, Response } from "express";
 import * as service from "./auth.service.js";
+import { AuthRequest } from "./auth.types.js";
+import { cookieOptions } from "../../config/cookies.js";
 
 // SIGNUP
 export const signup = async (req: Request, res: Response) => {
-  const user = await service.signupService(req.body);
-  res.json(user);
+  await service.signupService(req.body);
+
+  res.json({
+    message: "User created successfully",
+  });
 };
 
 // LOGIN
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-
   const { user, accessToken, refreshToken } = await service.loginService(
-    email,
-    password,
+    req.body,
   );
 
-  // ACCESS TOKEN COOKIE
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
-
-  // REFRESH TOKEN COOKIE
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+  res.cookie("accessToken", accessToken, cookieOptions);
+  res.cookie("refreshToken", refreshToken, cookieOptions);
 
   res.json({ user });
 };
 
-// REFRESH TOKEN
-export const refresh = (req: any, res: Response) => {
+// REFRESH (NO middleware)
+export const refresh = async (req: AuthRequest, res: Response) => {
+  const refreshToken = req.cookies?.refreshToken;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "No refresh token" });
+  }
+
   try {
-    const token = req.cookies.refreshToken;
+    const accessToken = await service.refreshService(refreshToken);
 
-    const newAccessToken = service.refreshService(token);
+    res.cookie("accessToken", accessToken, cookieOptions);
 
-    res.cookie("accessToken", newAccessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-    });
-
-    res.json({ message: "Access token refreshed" });
+    return res.json({ message: "access token refreshed" });
   } catch {
-    return res.status(401).json({
-      message: "Session expired. Please login again.",
-    });
+    return res.status(401).json({ message: "Session expired" });
   }
 };
 
 // LOGOUT
-export const logout = (req: any, res: Response) => {
+export const logout = (req: AuthRequest, res: Response) => {
   res.clearCookie("accessToken", {
-    httpOnly: true,
+    ...cookieOptions,
+    path: "/",
   });
-
   res.clearCookie("refreshToken", {
-    httpOnly: true,
+    ...cookieOptions,
+    path: "/",
   });
 
-  res.json({ message: "Logged out successfully" });
+  res.json({ message: "Logged out" });
+};
+
+// ME (USES middleware)
+export const me = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const user = await service.meService(req.user.id);
+
+  res.json({ user });
 };
